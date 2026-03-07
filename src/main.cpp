@@ -1,7 +1,6 @@
 #include <iostream>
 #include <string>
 
-
 void repl() {
   std::string command;
 
@@ -9,7 +8,10 @@ void repl() {
 
   std::cin >> command;
 
-  std::cout << command << ": command not found\n";
+  if (command == "exit")
+    exit(0);
+  else
+    std::cout << command << ": command not found\n";
 }
 
 int main() {
@@ -17,9 +19,7 @@ int main() {
   std::cout << std::unitbuf;
   std::cerr << std::unitbuf;
 
-  while(1) {
-	repl();
+  while (1) {
+    repl();
   }
-
 }
-
