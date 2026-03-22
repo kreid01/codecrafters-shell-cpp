@@ -130,11 +130,6 @@ void echo_single_quotes(std::string command) {
   std::string result = std::string();
 
   for (std::uint8_t i = 0; i < command.length(); i++) {
-    // if (command[i] == '\x20' && command[i + 1] == '\x20') {
-    //   std::cout << "/hit";
-    //   continue;
-    // }
-
     if (command[i] == '\'') {
       continue;
     }
@@ -159,10 +154,32 @@ void echo_no_quotes(std::string command) {
   std::cout << result << std::endl;
 }
 
+void echo_double_quotes(std::string command) {
+  std::string result = std::string();
+  bool in_quotes = false;
+
+  for (std::uint8_t i = 0; i < command.length(); i++) {
+    if (!in_quotes && command[i] == '\x20' && command[i + 1] == '\x20') {
+      continue;
+    }
+
+    if (command[i] == '\"') {
+      in_quotes = !in_quotes;
+      continue;
+    }
+
+    result.push_back(command[i]);
+  }
+
+  std::cout << result << std::endl;
+}
+
 void echo(std::string command) {
   std::string response = erase_command(command, "echo");
   if (response[0] == '\'') {
     echo_single_quotes(response);
+  } else if (response[0] == '\"') {
+    echo_double_quotes(response);
   } else {
     echo_no_quotes(response);
   }
