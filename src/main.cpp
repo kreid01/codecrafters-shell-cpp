@@ -9,7 +9,7 @@
 
 namespace fs = std::filesystem;
 
-std::vector<std::string> built_ins = {"exit", "echo", "type"};
+std::vector<std::string> built_ins = {"exit", "echo", "type", "pwd"};
 
 std::string erase_command(std::string command, std::string built_in) {
   std::int32_t length = built_in.length();
@@ -105,6 +105,11 @@ void try_run(std::string command) {
   }
 }
 
+void pwd(std::string command) {
+  std::string current_dir = fs::current_path();
+  std::cout << current_dir << std::endl;
+}
+
 void repl() {
   std::string command;
 
@@ -118,6 +123,8 @@ void repl() {
     echo(command);
   else if (command.find("type") == 0) {
     type(command);
+  } else if (command.find("pwd") == 0) {
+    pwd(command);
   } else
     try_run(command);
 }
