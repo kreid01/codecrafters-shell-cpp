@@ -1,3 +1,4 @@
+#include <cmath>
 #include <cstdint>
 #include <cstdlib>
 #include <filesystem>
@@ -14,11 +15,6 @@ std::vector<std::string> built_ins = {"exit", "echo", "type", "pwd"};
 std::string erase_command(std::string command, std::string built_in) {
   std::int32_t length = built_in.length();
   return command.erase(0, length + 1);
-}
-
-void echo(std::string command) {
-  std::string response = erase_command(command, "echo");
-  std::cout << response << std::endl;
 }
 
 bool in_array(const std::string &value, const std::vector<std::string> &array) {
@@ -130,6 +126,48 @@ void cd(std::string command) {
   }
 }
 
+void echo_single_quotes(std::string command) {
+  std::string result = std::string();
+
+  for (std::uint8_t i = 0; i < command.length(); i++) {
+    // if (command[i] == '\x20' && command[i + 1] == '\x20') {
+    //   std::cout << "/hit";
+    //   continue;
+    // }
+
+    if (command[i] == '\'') {
+      continue;
+    }
+
+    result.push_back(command[i]);
+  }
+
+  std::cout << result << std::endl;
+}
+
+void echo_no_quotes(std::string command) {
+  std::string result = std::string();
+
+  for (std::uint8_t i = 0; i < command.length(); i++) {
+    if (command[i] == '\x20' && command[i + 1] == '\x20') {
+      continue;
+    }
+
+    result.push_back(command[i]);
+  }
+
+  std::cout << result << std::endl;
+}
+
+void echo(std::string command) {
+  std::string response = erase_command(command, "echo");
+  if (response[0] == '\'') {
+    echo_single_quotes(response);
+  } else {
+    echo_no_quotes(response);
+  }
+}
+
 void repl() {
   std::string command;
 
@@ -147,6 +185,8 @@ void repl() {
     pwd(command);
   } else if (command.find("cd") == 0) {
     cd(command);
+  } else if (command.find("echo") == 0) {
+    echo(command);
   } else
     try_run(command);
 }
