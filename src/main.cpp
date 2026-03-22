@@ -29,12 +29,26 @@ void not_found(std::string command) {
   std::cout << command << ": command not found" << std::endl;
 }
 
-std::vector<std::string> split(std::string string) {
+bool string_contains(std::string string, char sub) {
+  for (std::int8_t i = 0; i < string.length(); i++) {
+    if (string[i] == sub) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+std::vector<std::string> split(std::string string, char sub) {
+  if (!string_contains(string, sub)) {
+    return std::vector<std::string>{string};
+  }
+
   std::vector<std::string> array;
   std::string tempWord = "";
 
   for (std::uint8_t i = 0; i < string.length(); i++) {
-    if (string[i] == ':') {
+    if (string[i] == sub) {
       array.push_back(tempWord);
       tempWord = "";
     } else {
@@ -47,12 +61,13 @@ std::vector<std::string> split(std::string string) {
 
 std::string get_exe_path(std::string command) {
   char *path = std::getenv("PATH");
-  std::vector<std::string> arr = split(path);
+  std::vector<std::string> arr = split(path, ':');
 
   for (const auto &path : arr)
     for (const auto &entry : fs::directory_iterator(path)) {
       std::filesystem::path full_path = std::filesystem::path(path) / command;
-      if (access(full_path.c_str(), X_OK) == 0) {
+      if (access(full_path.c_str(), X_OK) == 0 &&
+          std::filesystem::exists(full_path.c_str())) {
         return full_path.c_str();
       }
     }
@@ -78,6 +93,18 @@ void type(std::string command) {
   }
 }
 
+std::vector<std::string> get_args(std::string args) { return split(args, ' '); }
+
+void try_run(std::string command) {
+  std::vector<std::string> args = get_args(command);
+
+  if (is_executable(args[0])) {
+    std::system(command.c_str());
+  } else {
+    not_found(command);
+  }
+}
+
 void repl() {
   std::string command;
 
@@ -92,7 +119,7 @@ void repl() {
   else if (command.find("type") == 0) {
     type(command);
   } else
-    not_found(command);
+    try_run(command);
 }
 
 int main() {
