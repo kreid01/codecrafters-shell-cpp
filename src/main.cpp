@@ -110,6 +110,19 @@ void pwd(std::string command) {
   std::cout << current_dir << std::endl;
 }
 
+void cd(std::string command) {
+  std::string current_dir = fs::current_path();
+  std::string response = erase_command(command, "cd");
+  std::string new_path = std::filesystem::path(current_dir) / response;
+
+  if (std::filesystem::exists(new_path)) {
+    std::filesystem::current_path(new_path);
+  } else {
+    std::cout << "cd: " << response << ": No such file or directory"
+              << std::endl;
+  }
+}
+
 void repl() {
   std::string command;
 
@@ -125,6 +138,8 @@ void repl() {
     type(command);
   } else if (command.find("pwd") == 0) {
     pwd(command);
+  } else if (command.find("cd") == 0) {
+    cd(command);
   } else
     try_run(command);
 }
