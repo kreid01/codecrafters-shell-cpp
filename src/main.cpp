@@ -110,12 +110,19 @@ void pwd(std::string command) {
   std::cout << current_dir << std::endl;
 }
 
+void home() {
+  char *home = std::getenv("HOME");
+  std::filesystem::current_path(home);
+}
+
 void cd(std::string command) {
   std::string current_dir = fs::current_path();
   std::string response = erase_command(command, "cd");
   std::string new_path = std::filesystem::path(current_dir) / response;
 
-  if (std::filesystem::exists(new_path)) {
+  if (response == "~") {
+    home();
+  } else if (std::filesystem::exists(new_path)) {
     std::filesystem::current_path(new_path);
   } else {
     std::cout << "cd: " << response << ": No such file or directory"
