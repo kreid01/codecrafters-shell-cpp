@@ -144,11 +144,27 @@ void echo_no_quotes(std::string command) {
   std::string result = std::string();
 
   for (std::uint8_t i = 0; i < command.length(); i++) {
-    if (command[i] == '\x20' && command[i + 1] == '\x20') {
+    char current_char = command[i];
+    char next_char = command[i + 1];
+
+    if (current_char == '\\') {
+      if ('\\' && next_char == '\\') {
+        result.push_back('\\');
+      } else if (next_char == '\x20') {
+        result.push_back(' ');
+      } else {
+        continue;
+      }
+
+      i++;
       continue;
     }
 
-    result.push_back(command[i]);
+    if (current_char == '\x20' && next_char == '\x20') {
+      continue;
+    }
+
+    result.push_back(current_char);
   }
 
   std::cout << result << std::endl;
