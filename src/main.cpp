@@ -21,6 +21,10 @@ bool in_array(const std::string &value, const std::vector<std::string> &array) {
   return std::find(array.begin(), array.end(), value) != array.end();
 }
 
+bool char_in_array(const char &value, const std::vector<char> &array) {
+  return std::find(array.begin(), array.end(), value) != array.end();
+}
+
 void not_found(std::string command) {
   std::cout << command << ": command not found" << std::endl;
 }
@@ -147,16 +151,17 @@ void echo_no_quotes(std::string command) {
     char current_char = command[i];
     char next_char = command[i + 1];
 
+    std::vector<char> escapes = std::vector<char>{'\\', '\'', '\"'};
+
     if (current_char == '\\') {
-      if ('\\' && next_char == '\\') {
-        result.push_back('\\');
+      if (char_in_array(next_char, escapes)) {
+        result.push_back(next_char);
+        i++;
       } else if (next_char == '\x20') {
         result.push_back(' ');
-      } else {
-        continue;
+        i++;
       }
 
-      i++;
       continue;
     }
 
@@ -175,16 +180,34 @@ void echo_double_quotes(std::string command) {
   bool in_quotes = false;
 
   for (std::uint8_t i = 0; i < command.length(); i++) {
-    if (!in_quotes && command[i] == '\x20' && command[i + 1] == '\x20') {
+    char current_char = command[i];
+    char next_char = command[i + 1];
+
+    bool backslash = current_char == '\\';
+
+    if (!in_quotes && current_char == '\x20' && next_char == '\x20') {
       continue;
     }
 
-    if (command[i] == '\"') {
+    if (backslash) {
+      if (next_char == '\"') {
+        result.push_back(next_char);
+      }
+
+      if (next_char == '\\') {
+        result.push_back(next_char);
+      }
+
+      i++;
+      continue;
+    }
+
+    if (current_char == '\"') {
       in_quotes = !in_quotes;
       continue;
     }
 
-    result.push_back(command[i]);
+    result.push_back(current_char);
   }
 
   std::cout << result << std::endl;
