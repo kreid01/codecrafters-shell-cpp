@@ -95,16 +95,6 @@ void type(std::string command) {
 
 std::vector<std::string> get_args(std::string args) { return split(args, ' '); }
 
-void try_run(std::string command) {
-  std::vector<std::string> args = get_args(command);
-
-  if (is_executable(args[0])) {
-    std::system(command.c_str());
-  } else {
-    not_found(command);
-  }
-}
-
 void pwd(std::string command) {
   std::string current_dir = fs::current_path();
   std::cout << current_dir << std::endl;
@@ -130,22 +120,30 @@ void cd(std::string command) {
   }
 }
 
-void echo_single_quotes(std::string command) {
-  std::string result = std::string();
+std::vector<std::string> format_single_quotes(std::string command) {
+  std::vector<std::string> result = std::vector<std::string>();
+  std::string curr = std::string();
 
   for (std::uint8_t i = 0; i < command.length(); i++) {
     if (command[i] == '\'') {
+      result.push_back(curr);
+      curr = std::string();
       continue;
     }
 
-    result.push_back(command[i]);
+    curr.push_back(command[i]);
   }
 
-  std::cout << result << std::endl;
+  if (curr != std::string()) {
+    result.push_back(curr);
+  }
+
+  return result;
 }
 
-void echo_no_quotes(std::string command) {
-  std::string result = std::string();
+std::vector<std::string> format_no_quotes(std::string command) {
+  std::vector<std::string> result = std::vector<std::string>();
+  std::string curr = std::string();
 
   for (std::uint8_t i = 0; i < command.length(); i++) {
     char current_char = command[i];
@@ -155,10 +153,10 @@ void echo_no_quotes(std::string command) {
 
     if (current_char == '\\') {
       if (char_in_array(next_char, escapes)) {
-        result.push_back(next_char);
+        curr.push_back(next_char);
         i++;
       } else if (next_char == '\x20') {
-        result.push_back(' ');
+        curr.push_back(' ');
         i++;
       }
 
@@ -169,14 +167,17 @@ void echo_no_quotes(std::string command) {
       continue;
     }
 
-    result.push_back(current_char);
+    curr.push_back(current_char);
   }
 
-  std::cout << result << std::endl;
+  result.push_back(curr);
+
+  return result;
 }
 
-void echo_double_quotes(std::string command) {
-  std::string result = std::string();
+std::vector<std::string> format_double_quotes(std::string command) {
+  std::vector<std::string> result = std::vector<std::string>();
+  std::string curr = std::string();
   bool in_quotes = false;
 
   for (std::uint8_t i = 0; i < command.length(); i++) {
@@ -190,12 +191,8 @@ void echo_double_quotes(std::string command) {
     }
 
     if (backslash) {
-      if (next_char == '\"') {
-        result.push_back(next_char);
-      }
-
-      if (next_char == '\\') {
-        result.push_back(next_char);
+      if (next_char == '\"' || next_char == '\\') {
+        curr.push_back(next_char);
       }
 
       i++;
@@ -204,24 +201,54 @@ void echo_double_quotes(std::string command) {
 
     if (current_char == '\"') {
       in_quotes = !in_quotes;
+
+      result.push_back(curr);
+      curr = std::string();
+
       continue;
     }
 
-    result.push_back(current_char);
+    curr.push_back(current_char);
   }
 
-  std::cout << result << std::endl;
+  if (curr != std::string()) {
+    result.push_back(curr);
+  }
+
+  return result;
+}
+
+std::vector<std::string> format_string(std::string arg) {
+  if (arg[0] == '\'') {
+    return format_single_quotes(arg);
+  } else if (arg[0] == '\"') {
+    return format_double_quotes(arg);
+  } else {
+    return format_no_quotes(arg);
+  }
+}
+
+void try_run(std::string command) {
+  std::vector<std::string> args = get_args(command);
+
+  std::vector<std::string> formatted_arg = format_string(args[0]);
+
+  if (is_executable(formatted_arg[0])) {
+    std::system(command.c_str());
+  } else {
+    not_found(command);
+  }
 }
 
 void echo(std::string command) {
   std::string response = erase_command(command, "echo");
-  if (response[0] == '\'') {
-    echo_single_quotes(response);
-  } else if (response[0] == '\"') {
-    echo_double_quotes(response);
-  } else {
-    echo_no_quotes(response);
+  std::vector<std::string> formatted_command = format_string(response);
+
+  for (int i = 0; i < formatted_command.size(); i++) {
+    std::cout << formatted_command[i];
   }
+
+  std::cout << std::endl;
 }
 
 void repl() {
