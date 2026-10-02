@@ -1,99 +1,36 @@
-#include <cmath>
-#include <cstdint>
 #include <cstdlib>
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <ostream>
 #include <string>
-#include <unistd.h>
 #include <vector>
+
+#include "exe.h"
+#include "tokenizer.h"
+#include "utils.h"
 
 namespace fs = std::filesystem;
 
 std::vector<std::string> built_ins = {"exit", "echo", "type", "pwd"};
 
-std::string erase_command(std::string command, std::string built_in) {
-  std::int32_t length = built_in.length();
-  return command.erase(0, length + 1);
-}
-
-bool in_array(const std::string &value, const std::vector<std::string> &array) {
-  return std::find(array.begin(), array.end(), value) != array.end();
-}
-
-bool char_in_array(const char &value, const std::vector<char> &array) {
-  return std::find(array.begin(), array.end(), value) != array.end();
-}
-
-void not_found(std::string command) {
-  std::cout << command << ": command not found" << std::endl;
-}
-
-bool string_contains(std::string string, char sub) {
-  for (std::int8_t i = 0; i < string.length(); i++) {
-    if (string[i] == sub) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
-std::vector<std::string> split(std::string string, char sub) {
-  if (!string_contains(string, sub)) {
-    return std::vector<std::string>{string};
-  }
-
-  std::vector<std::string> array;
-  std::string tempWord = "";
-
-  for (std::uint8_t i = 0; i < string.length(); i++) {
-    if (string[i] == sub) {
-      array.push_back(tempWord);
-      tempWord = "";
-    } else {
-      tempWord += string[i];
-    }
-  }
-
-  return array;
-}
-
-std::string get_exe_path(std::string command) {
-  char *path = std::getenv("PATH");
-  std::vector<std::string> arr = split(path, ':');
-
-  for (const auto &path : arr)
-    for (const auto &entry : fs::directory_iterator(path)) {
-      std::filesystem::path full_path = std::filesystem::path(path) / command;
-      if (access(full_path.c_str(), X_OK) == 0 &&
-          std::filesystem::exists(full_path.c_str())) {
-        return full_path.c_str();
-      }
-    }
-
-  return std::string();
-}
-
-bool is_executable(std::string command) {
-  return !get_exe_path(command).empty();
+namespace tokenizer {
+std::vector<std::string> format_string(std::string, bool);
 }
 
 void type(std::string command) {
-  std::string response = erase_command(command, "type");
+  std::string response = utils::erase_command(command, "type");
 
-  if (in_array(response, built_ins)) {
+  if (utils::in_array(response, built_ins)) {
     std::cout << response << " is a shell builtin\n";
-  } else if (is_executable(response)) {
-    std::string path = get_exe_path(response);
+  } else if (exe::is_executable(response)) {
+    std::string path = exe::get_exe_path(response);
     std::cout << response << " is " << path << std::endl;
 
   } else {
     std::cout << response << ": not found" << std::endl;
   }
 }
-
-std::vector<std::string> get_args(std::string args) { return split(args, ' '); }
 
 void pwd(std::string command) {
   std::string current_dir = fs::current_path();
@@ -107,7 +44,7 @@ void home() {
 
 void cd(std::string command) {
   std::string current_dir = fs::current_path();
-  std::string response = erase_command(command, "cd");
+  std::string response = utils::erase_command(command, "cd");
   std::string new_path = std::filesystem::path(current_dir) / response;
 
   if (response == "~") {
@@ -120,135 +57,83 @@ void cd(std::string command) {
   }
 }
 
-std::vector<std::string> format_single_quotes(std::string command) {
-  std::vector<std::string> result = std::vector<std::string>();
-  std::string curr = std::string();
+void create_and_write_to_file(std::string file_name, std::string contents) {
+  std::filesystem::path path(file_name);
+  std::filesystem::create_directories(path.parent_path());
 
-  for (std::uint8_t i = 0; i < command.length(); i++) {
-    if (command[i] == '\'') {
-      result.push_back(curr);
-      curr = std::string();
-      continue;
-    }
+  std::ofstream file(file_name);
 
-    curr.push_back(command[i]);
+  if (!file) {
+    return;
   }
 
-  if (curr != std::string()) {
-    result.push_back(curr);
+  file << contents;
+}
+
+std::vector<std::string> echo(std::string command, bool echo) {
+  std::string response = utils::erase_command(command, "echo");
+  return tokenizer::format_string(response, echo);
+}
+
+std::string trim(std::string str) {
+  std::string result = std::string();
+  for (int i = 0; i < str.length(); i++) {
+    if ((i == 0 || i == str.length() - 1) && str[i] == ' ') {
+      continue;
+    } else {
+      result.push_back(str[i]);
+    }
   }
 
   return result;
 }
 
-std::vector<std::string> format_no_quotes(std::string command) {
-  std::vector<std::string> result = std::vector<std::string>();
-  std::string curr = std::string();
+enum Redirect { OUTPUT, NONE };
 
-  for (std::uint8_t i = 0; i < command.length(); i++) {
-    char current_char = command[i];
-    char next_char = command[i + 1];
+struct RedirectOptions {
+  std::string Value;
+  std::string Destination;
+  enum Redirect Redirect;
+};
 
-    std::vector<char> escapes = std::vector<char>{'\\', '\'', '\"'};
+std::string append(std::string a, std::string b) {
+  std::string value = a;
 
-    if (current_char == '\\') {
-      if (char_in_array(next_char, escapes)) {
-        curr.push_back(next_char);
-        i++;
-      } else if (next_char == '\x20') {
-        curr.push_back(' ');
-        i++;
+  if (value.length() == 0) {
+    return b;
+  }
+
+  value += " ";
+  value += b;
+
+  return value;
+}
+
+RedirectOptions get_redirect_options(std::vector<std::string> args) {
+  std::string value = std::string();
+  Redirect redirect = Redirect::NONE;
+
+  std::string destination = std::string();
+  bool dest = false;
+
+  for (int i = 0; i < args.size(); i++) {
+    std::string curr = args[i];
+
+    if (curr == "1" || curr == "1>") {
+      redirect = Redirect::OUTPUT;
+      dest = true;
+    } else {
+      if (!dest) {
+        value = append(value, curr);
+      } else {
+        destination = curr;
       }
-
-      continue;
     }
-
-    if (current_char == '\x20' && next_char == '\x20') {
-      continue;
-    }
-
-    curr.push_back(current_char);
   }
 
-  result.push_back(curr);
+  value += "\n";
 
-  return result;
-}
-
-std::vector<std::string> format_double_quotes(std::string command) {
-  std::vector<std::string> result = std::vector<std::string>();
-  std::string curr = std::string();
-  bool in_quotes = false;
-
-  for (std::uint8_t i = 0; i < command.length(); i++) {
-    char current_char = command[i];
-    char next_char = command[i + 1];
-
-    bool backslash = current_char == '\\';
-
-    if (!in_quotes && current_char == '\x20' && next_char == '\x20') {
-      continue;
-    }
-
-    if (backslash) {
-      if (next_char == '\"' || next_char == '\\') {
-        curr.push_back(next_char);
-      }
-
-      i++;
-      continue;
-    }
-
-    if (current_char == '\"') {
-      in_quotes = !in_quotes;
-
-      result.push_back(curr);
-      curr = std::string();
-
-      continue;
-    }
-
-    curr.push_back(current_char);
-  }
-
-  if (curr != std::string()) {
-    result.push_back(curr);
-  }
-
-  return result;
-}
-
-std::vector<std::string> format_string(std::string arg) {
-  if (arg[0] == '\'') {
-    return format_single_quotes(arg);
-  } else if (arg[0] == '\"') {
-    return format_double_quotes(arg);
-  } else {
-    return format_no_quotes(arg);
-  }
-}
-
-void try_run(std::string command) {
-  std::vector<std::string> args = get_args(command);
-
-  std::vector<std::string> formatted_arg = format_string(args[0]);
-
-  if (is_executable(formatted_arg[0])) {
-    std::system(command.c_str());
-  } else {
-    not_found(command);
-  }
-}
-
-void echo(std::string command) {
-  std::string response = erase_command(command, "echo");
-  std::vector<std::string> formatted_command = format_string(response);
-
-  for (int i = 0; i < formatted_command.size(); i++) {
-    std::cout << formatted_command[i];
-  }
-
-  std::cout << std::endl;
+  return {value, destination, redirect};
 }
 
 void repl() {
@@ -260,18 +145,30 @@ void repl() {
 
   if (command.find("exit") == 0)
     exit(0);
-  else if (command.find("echo") == 0)
-    echo(command);
-  else if (command.find("type") == 0) {
+  else if (command.find("echo") == 0) {
+    std::vector<std::string> args = echo(command, false);
+    RedirectOptions redirectOptions = get_redirect_options(args);
+
+    if (redirectOptions.Redirect == Redirect::OUTPUT) {
+      create_and_write_to_file(redirectOptions.Destination,
+                               redirectOptions.Value);
+    } else {
+
+      std::vector<std::string> ech = echo(command, true);
+      for (int i = 0; i < ech.size(); i++) {
+        std::cout << ech[i];
+      }
+      std::cout << std::endl;
+    }
+  } else if (command.find("type") == 0) {
     type(command);
   } else if (command.find("pwd") == 0) {
     pwd(command);
   } else if (command.find("cd") == 0) {
     cd(command);
-  } else if (command.find("echo") == 0) {
-    echo(command);
-  } else
-    try_run(command);
+  } else {
+    exe::try_run(command);
+  }
 }
 
 int main() {
